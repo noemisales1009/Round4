@@ -120,6 +120,7 @@ export interface Task {
 export interface User {
     name: string;
     title: string;
+    sector?: string;
     avatarUrl: string;
 }
 
@@ -134,6 +135,14 @@ export interface TasksContextType {
   updateTaskStatus: (taskId: number | string, status: TaskStatus) => void;
   addTask: (taskData: Omit<Task, 'id' | 'status' | 'justification'>) => void;
   addPatientAlert: (data: { patientId: string | number; description: string; responsible: string; timeLabel: string }) => Promise<void>;
+  summary?: TaskSummary;
+}
+
+export interface TaskSummary {
+    total_alertas_criados: number;
+    total_no_prazo_pendentes: number;
+    total_fora_do_prazo_pendentes: number;
+    total_alertas_concluidos: number;
 }
 
 export interface PatientsContextType {

@@ -33,7 +33,23 @@ export const ICON_MAP: Record<string, React.FC<{className?: string}>> = {
     'UsersIcon': UsersIcon,
     'HomeIcon': HomeIcon,
     'ScalpelIcon': ScalpelIcon,
-    'UserIcon': UserIcon
+    'UserIcon': UserIcon,
+    
+    // Mappings matching Supabase 'icone' column values
+    'apple': AppleIcon,
+    'droplet': DropletIcon,
+    'heart-pulse': HeartPulseIcon,
+    'beaker': BeakerIcon,
+    'liver': LiverIcon,
+    'lungs': LungsIcon,
+    'dumbbell': DumbbellIcon,
+    'brain': BrainIcon,
+    'pill': PillIcon,
+    'shield': ShieldIcon,
+    'users': UsersIcon,
+    'home': HomeIcon,
+    'ScissorsIcon': ScalpelIcon,
+    // 'UserIcon' is already handled in the PascalCase section
 };
 
 // Sample data for the new fields for Patient 1 (Leandro)
@@ -141,6 +157,7 @@ export const CATEGORIES: Category[] = [
   { id: 14, name: 'Terapia Ocupacional (TO)', icon: UserIcon },
 ];
 
+// Fallback questions if DB is empty
 export const QUESTIONS: Question[] = [
   // --- SISTEMA NUTRICIONAL (10 PERGUNTAS) ---
   {
@@ -261,7 +278,6 @@ export const QUESTIONS: Question[] = [
   }
 ];
 
-// Updated Alerts to match new patient list IDs
 export const ALERTS: Alert[] = [
     { id: 1, text: "PA instável", categoryId: 3, patientId: 1 },
     { id: 2, text: "Saturação baixa", categoryId: 6, patientId: 16 },
@@ -310,9 +326,15 @@ export const RESPONSIBLES: string[] = [
     'Fisioterapeuta', 
     'Farmacêutico', 
     'Nutricionista',
-    'Odontólogo', 
+    'Odontólogo',
+    'Fonoaudiólogo',
+    'Terapeuta Ocupacional',
+    'Assistente Social',
+    'Psicólogo',
     'Médico / Enfermeiro', 
-    'Médico / Fisioterapeuta'
+    'Médico / Fisioterapeuta',
+    'Médico / Nutricionista',
+    'Médico / Farmacêutico'
 ];
 
 export const ALERT_DEADLINES: string[] = [
@@ -345,5 +367,6 @@ export const ALERT_DEADLINES: string[] = [
 export const INITIAL_USER: User = {
     name: 'Noemi',
     title: 'Médica',
+    sector: '',
     avatarUrl: 'https://i.pravatar.cc/150?u=noemi',
 };
