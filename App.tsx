@@ -3034,38 +3034,54 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             let mappedTasks: Task[] = [];
 
             // Map checklist and patient alert tasks from their respective views
+            if (tasksRes.error) {
+                console.error('Erro ao buscar tasks_view_horario_br:', tasksRes.error);
+            }
+
             if (tasksRes.data) {
-                mappedTasks = tasksRes.data.map((t: any) => ({
-                    id: t.id_alerta ?? t.id,
-                    patientId: t.patient_id ?? '',
-                    categoryId: t.category_id ?? 0,
-                    description: t.alertaclinico ?? t.description ?? '',
-                    responsible: t.responsavel ?? t.responsible ?? '',
-                    deadline: t.deadline ?? '',
-                    status: mapTaskStatus(t.live_status ?? t.liveStatus ?? t.status, t.deadline),
-                    justification: t.justificativa ?? t.justification,
-                    patientName: t.patient_name,
-                    categoryName: t.category_name ?? t.category,
-                    timeLabel: t.hora_criacao_hhmm ?? t.time_label ?? t.hora_selecionada,
-                    options: t.options ?? t.opcoes,
-                }));
+                mappedTasks = tasksRes.data.map((t: any) => {
+                    const rawStatus = t.live_status ?? t.liveStatus ?? t.status;
+                    const deadlineForStatus = t.deadline ?? t.prazo_limite_br ?? t.prazo_limite_formatado;
+                    return {
+                        id: t.id_alerta ?? t.id,
+                        patientId: t.patient_id ?? '',
+                        categoryId: t.category_id ?? 0,
+                        description: t.alertaclinico ?? t.description ?? '',
+                        responsible: t.responsavel ?? t.responsible ?? '',
+                        deadline: t.deadline ?? t.prazo_limite_br ?? '',
+                        status: mapTaskStatus(rawStatus, deadlineForStatus),
+                        justification: t.justificativa ?? t.justification,
+                        patientName: t.patient_name,
+                        categoryName: t.category_name ?? t.category,
+                        timeLabel: t.hora_criacao_hhmm ?? t.time_label ?? t.hora_selecionada,
+                        options: t.options ?? t.opcoes,
+                    } as Task;
+                });
+            }
+
+            if (alertsRes.error) {
+                console.error('Erro ao buscar alertas_paciente_view_completa:', alertsRes.error);
             }
 
             if (alertsRes.data) {
-                const mappedAlerts: Task[] = alertsRes.data.map((a: any) => ({
-                    id: a.id_alerta ?? a.id,
-                    patientId: a.patient_id ?? '',
-                    categoryId: a.category_id ?? 0,
-                    description: a.alertaclinico ?? a.alerta_descricao ?? '',
-                    responsible: a.responsavel ?? a.responsible ?? '',
-                    deadline: a.deadline ?? '',
-                    status: mapTaskStatus(a.live_status ?? a.liveStatus ?? a.status, a.deadline),
-                    justification: a.justificativa ?? a.justification,
-                    patientName: a.patient_name ?? a.nome_paciente,
-                    categoryName: a.category_name ?? a.category ?? a.categoria,
-                    timeLabel: a.hora_selecionada ?? a.time_label,
-                    options: a.options ?? a.opcoes,
-                }));
+                const mappedAlerts: Task[] = alertsRes.data.map((a: any) => {
+                    const rawStatus = a.live_status ?? a.liveStatus ?? a.status;
+                    const deadlineForStatus = a.deadline ?? a.prazo_limite_br ?? a.prazo_limite_formatado;
+                    return {
+                        id: a.id_alerta ?? a.id,
+                        patientId: a.patient_id ?? '',
+                        categoryId: a.category_id ?? 0,
+                        description: a.alertaclinico ?? a.alerta_descricao ?? '',
+                        responsible: a.responsavel ?? a.responsible ?? '',
+                        deadline: a.deadline ?? a.prazo_limite_br ?? '',
+                        status: mapTaskStatus(rawStatus, deadlineForStatus),
+                        justification: a.justificativa ?? a.justification,
+                        patientName: a.patient_name ?? a.nome_paciente,
+                        categoryName: a.category_name ?? a.category ?? a.categoria,
+                        timeLabel: a.hora_selecionada ?? a.time_label,
+                        options: a.options ?? a.opcoes,
+                    } as Task;
+                });
                 mappedTasks = [...mappedTasks, ...mappedAlerts];
             }
 
