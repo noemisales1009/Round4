@@ -3015,6 +3015,9 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     const [tasks, setTasks] = useState<Task[]>([]);
     const [summary, setSummary] = useState<TaskSummary | undefined>(undefined);
 
+    // The views already compute status using Brazil timezone rules. We map the view columns
+    // (including snake_case names) into our Task shape so the UI simply displays what the
+    // database decided, instead of re-evaluating deadlines client-side.
     const mapTaskStatus = (rawStatus: string | null | undefined, deadline?: string | null): TaskStatus => {
         const normalized = (rawStatus || '').toLowerCase().replace(/\s+/g, '_');
         switch (normalized) {
@@ -3114,6 +3117,8 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             if (summaryRes.data) {
                 const data = Array.isArray(summaryRes.data) ? summaryRes.data[0] : summaryRes.data;
                 if (data) {
+                    // The Supabase view already aggregates alert totals, so we simply normalize
+                    // camelCase/snake_case keys before storing in context.
                     setSummary({
                         totalAlertas: data.totalAlertas ?? data.total_alertas ?? 0,
                         totalNoPrazo: data.totalNoPrazo ?? data.total_no_prazo ?? 0,
