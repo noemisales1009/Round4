@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useContext, useEffect, createContext, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, Link, useParams, useLocation, Outlet, NavLink, Navigate } from 'react-router-dom';
-import { Patient, Category, Question, ChecklistAnswer, Answer, Device, Exam, Medication, Task, TaskStatus, PatientsContextType, TasksContextType, NotificationState, NotificationContextType, User, UserContextType, Theme, ThemeContextType, SurgicalProcedure, ScaleScore, Culture } from './types';
+import { Patient, Category, Question, ChecklistAnswer, Answer, Device, Exam, Medication, Task, TaskStatus, PatientsContextType, TasksContextType, NotificationState, NotificationContextType, User, UserContextType, Theme, ThemeContextType, SurgicalProcedure, ScaleScore, Culture, TaskSummary } from './types';
 import { PATIENTS as initialPatients, CATEGORIES as STATIC_CATEGORIES, QUESTIONS as STATIC_QUESTIONS, TASKS as initialTasks, DEVICE_TYPES, DEVICE_LOCATIONS, EXAM_STATUSES, RESPONSIBLES, ALERT_DEADLINES, INITIAL_USER, MEDICATION_DOSAGE_UNITS, ICON_MAP } from './constants';
 import { BackArrowIcon, PlusIcon, WarningIcon, ClockIcon, AlertIcon, CheckCircleIcon, BedIcon, UserIcon, PencilIcon, BellIcon, InfoIcon, EyeOffIcon, ClipboardIcon, FileTextIcon, LogOutIcon, ChevronRightIcon, MenuIcon, DashboardIcon, CpuIcon, PillIcon, BarChartIcon, AppleIcon, DropletIcon, HeartPulseIcon, BeakerIcon, LiverIcon, LungsIcon, DumbbellIcon, BrainIcon, ShieldIcon, UsersIcon, HomeIcon, CloseIcon, SettingsIcon, CameraIcon, ScalpelIcon, SaveIcon, CheckSquareIcon, SquareIcon, ChevronDownIcon, CheckIcon, ChevronLeftIcon, BugIcon } from './components/icons';
 import { ComfortBScale } from './components/ComfortBScale';
@@ -318,10 +318,10 @@ const DashboardScreen: React.FC = () => {
     const summaryData = useMemo(() => {
         if (summary) {
              return [
-                { title: 'Alertas', count: summary.total_alertas_criados || 0, icon: WarningIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-100 dark:bg-yellow-900/50', status: 'alerta' },
-                { title: 'No Prazo', count: summary.total_no_prazo_pendentes || 0, icon: ClockIcon, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/50', status: 'no_prazo' },
-                { title: 'Fora do Prazo', count: summary.total_fora_do_prazo_pendentes || 0, icon: AlertIcon, color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/50', status: 'fora_do_prazo' },
-                { title: 'Concluídos', count: summary.total_alertas_concluidos || 0, icon: CheckCircleIcon, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/50', status: 'concluido' },
+                { title: 'Alertas', count: summary.totalAlertasCriados || 0, icon: WarningIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-100 dark:bg-yellow-900/50', status: 'alerta' },
+                { title: 'No Prazo', count: summary.totalNoPrazoPendentes || 0, icon: ClockIcon, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/50', status: 'no_prazo' },
+                { title: 'Fora do Prazo', count: summary.totalForaDoPrazoPendentes || 0, icon: AlertIcon, color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/50', status: 'fora_do_prazo' },
+                { title: 'Concluídos', count: summary.totalAlertasConcluidos || 0, icon: CheckCircleIcon, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/50', status: 'concluido' },
             ];
         }
         // Fallback to client-side calc if summary is not available
@@ -2995,57 +2995,81 @@ const PatientsProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // Start with empty array, will fetch on mount
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [summary, setSummary] = useState<TaskSummary | undefined>(undefined);
+
+    const mapTaskStatus = (rawStatus: string | null | undefined): TaskStatus => {
+        const normalized = (rawStatus || '').toLowerCase().replace(/\s+/g, '_');
+        switch (normalized) {
+            case 'alerta':
+            case 'aberto':
+                return 'alerta';
+            case 'no_prazo':
+                return 'no_prazo';
+            case 'fora_do_prazo':
+                return 'fora_do_prazo';
+            case 'concluido':
+            case 'concluida':
+                return 'concluido';
+            default:
+                return 'alerta';
+        }
+    };
 
     const fetchTasks = async () => {
         if (supabase) {
-            // Fetch from both 'tasks' and 'alertas_paciente' tables
-            const [tasksRes, alertsRes] = await Promise.all([
-                supabase.from('tasks').select('*'),
-                supabase.from('alertas_paciente').select('*') 
+            // Fetch data from Supabase views to align with server-side logic
+            const [tasksRes, alertsRes, summaryRes] = await Promise.all([
+                supabase.from('tarefas_visualizar_horario_br').select('*'),
+                supabase.from('alertas_do_paciente_visualizacao_completa').select('*'),
+                supabase.from('resumo_do_painel').select('*').maybeSingle(),
             ]);
 
             let mappedTasks: Task[] = [];
 
-            // Map standard checklist tasks
+            // Map checklist and patient alert tasks from their respective views
             if (tasksRes.data) {
                 mappedTasks = tasksRes.data.map((t: any) => ({
-                    id: t.id,
-                    patientId: t.patient_id,
-                    categoryId: t.category_id,
-                    description: t.description,
-                    responsible: t.responsible,
-                    deadline: t.deadline,
-                    status: t.status,
-                    justification: t.justification,
-                    patientName: t.patient_name,
-                    categoryName: t.category,
-                    timeLabel: t.time_label,
-                    options: t.options
+                    id: t.alert_id ?? t.id,
+                    patientId: t.patient_id ?? t.paciente_id ?? '',
+                    categoryId: t.category_id ?? t.categoria_id ?? 0,
+                    description: t.alerta_clinico ?? t.description ?? '',
+                    responsible: t.responsavel ?? t.responsible ?? '',
+                    deadline: t.deadline ?? t.prazo ?? t.data_limite ?? '',
+                    status: mapTaskStatus(t.status_ao_vivo ?? t.status),
+                    justification: t.justificativa ?? t.justification,
+                    patientName: t.patient_name ?? t.nome_paciente,
+                    categoryName: t.category ?? t.categoria ?? t.category_name,
+                    timeLabel: t.time_label ?? t.hora_selecionada ?? t.prazo_label,
+                    options: t.options ?? t.opcoes,
                 }));
             }
 
-            // Map new 'alertas_paciente' tasks
             if (alertsRes.data) {
-                const mappedAlerts: Task[] = alertsRes.data.map((a: any) => {
-                    // Calculate deadline from hora_selecionada string (e.g. "1 hora")
-                    const hours = parseInt(a.hora_selecionada?.split(' ')[0] || '0');
-                    const created = new Date(a.created_at);
-                    const deadline = new Date(created.getTime() + hours * 60 * 60 * 1000).toISOString();
-
-                    return {
-                        id: a.id, // UUID from new table
-                        patientId: a.patient_id,
-                        categoryId: 0, // General category for these alerts
-                        description: a.alerta_descricao,
-                        responsible: a.responsavel,
-                        deadline: deadline,
-                        // Map 'Pendente' to 'alerta' for UI compatibility
-                        status: (a.status === 'Pendente' || a.status === 'Aberto') ? 'alerta' : (a.status === 'Concluido' ? 'concluido' : 'alerta'),
-                        categoryName: 'Geral',
-                        timeLabel: a.hora_selecionada,
-                    };
-                });
+                const mappedAlerts: Task[] = alertsRes.data.map((a: any) => ({
+                    id: a.alert_id ?? a.id,
+                    patientId: a.patient_id ?? a.paciente_id ?? '',
+                    categoryId: a.category_id ?? a.categoria_id ?? 0,
+                    description: a.alerta_clinico ?? a.alerta_descricao ?? '',
+                    responsible: a.responsavel ?? a.responsible ?? '',
+                    deadline: a.deadline ?? a.prazo ?? a.data_limite ?? '',
+                    status: mapTaskStatus(a.status_ao_vivo ?? a.status),
+                    justification: a.justificativa ?? a.justification,
+                    patientName: a.patient_name ?? a.nome_paciente,
+                    categoryName: a.category ?? a.categoria ?? a.category_name,
+                    timeLabel: a.time_label ?? a.hora_selecionada ?? a.prazo_label,
+                    options: a.options ?? a.opcoes,
+                }));
                 mappedTasks = [...mappedTasks, ...mappedAlerts];
+            }
+
+            if (summaryRes.data) {
+                const data = summaryRes.data;
+                setSummary({
+                    totalAlertasCriados: data.totalAlertasCriados ?? data.total_alertas_criados ?? 0,
+                    totalNoPrazoPendentes: data.totalNoPrazoPendentes ?? data.total_no_prazo_pendentes ?? 0,
+                    totalForaDoPrazoPendentes: data.totalForaDoPrazoPendentes ?? data.total_fora_do_prazo_pendentes ?? 0,
+                    totalAlertasConcluidos: data.totalAlertasConcluidos ?? data.total_alertas_concluidos ?? 0,
+                });
             }
 
             setTasks(mappedTasks.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()));
@@ -3118,6 +3142,7 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     const value = {
         tasks,
+        summary,
         updateTaskJustification,
         updateTaskStatus,
         addTask,
