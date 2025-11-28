@@ -369,4 +369,5 @@ export const INITIAL_USER: User = {
     title: 'Médica',
     sector: '',
     avatarUrl: 'https://i.pravatar.cc/150?u=noemi',
+    accessLevel: 'geral',
 };

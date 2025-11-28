@@ -26,6 +26,17 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 // --- HELPER FOR DATES ---
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
+const ALLOWED_ROUND_USER_IDS = [
+    '9f80886a-d935-455f-a117-105e72e48e3c',
+    '0b1da7a4-7c79-419a-8504-bf312c07d346',
+];
+
+const canUserStartRound = (user: User) => {
+    const isAdmin = user.accessLevel === 'adm';
+    const legacyAllowlist = !user.accessLevel && ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+    return isAdmin || legacyAllowlist;
+};
+
 // --- LAYOUT & NAVIGATION ---
 
 const Sidebar: React.FC = () => {
@@ -941,6 +952,7 @@ const CreateAlertModal: React.FC<{ patientId: number | string; onClose: () => vo
 const PatientDetailScreen: React.FC = () => {
     const { patientId } = useParams<{ patientId: string }>();
     const { patients, addRemovalDateToDevice, deleteDeviceFromPatient, addEndDateToMedication, deleteMedicationFromPatient, deleteExamFromPatient, deleteSurgicalProcedureFromPatient, addScaleScoreToPatient, deleteCultureFromPatient } = useContext(PatientsContext)!;
+    const { user } = useContext(UserContext)!;
     const patient = patients.find(p => p.id.toString() === patientId);
     
     useHeader(patient ? `Leito ${patient.bedNumber}` : 'Paciente não encontrado');
@@ -963,6 +975,7 @@ const PatientDetailScreen: React.FC = () => {
     const [scaleView, setScaleView] = useState<'list' | 'comfort-b' | 'delirium' | 'glasgow' | 'crs-r' | 'flacc' | 'braden' | 'braden-qd' | 'vni-cnaf' | 'fss' | 'jfk'>('list');
 
     const { showNotification } = useContext(NotificationContext)!;
+    const canStartRound = canUserStartRound(user);
 
     useEffect(() => {
         if (mainTab !== 'scales') {
@@ -1347,12 +1360,35 @@ const PatientDetailScreen: React.FC = () => {
                 )}
             </div>
 
-            <Link to={`/patient/${patient.id}/round/categories`} className="w-full block text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-lg transition text-lg">
-                <div className="flex items-center justify-center gap-2">
-                    <ClipboardIcon className="w-6 h-6" />
-                    Iniciar/Ver Round
+            {canStartRound ? (
+                <Link
+                    to={`/patient/${patient.id}/round/categories`}
+                    className="w-full block text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-lg transition text-lg"
+                >
+                    <div className="flex items-center justify-center gap-2">
+                        <ClipboardIcon className="w-6 h-6" />
+                        Iniciar/Ver Round
+                    </div>
+                </Link>
+            ) : (
+                <div className="space-y-2">
+                    <button
+                        type="button"
+                        className="w-full block text-center bg-slate-300 text-slate-600 font-bold py-4 px-4 rounded-lg transition text-lg cursor-not-allowed opacity-80 border border-slate-200"
+                        disabled
+                        aria-disabled="true"
+                    >
+                        <div className="flex items-center justify-center gap-2">
+                            <ClipboardIcon className="w-6 h-6" />
+                            Iniciar/Ver Round
+                        </div>
+                    </button>
+                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2" role="alert">
+                        <EyeOffIcon className="w-5 h-5" />
+                        Você não tem acesso para iniciar o Round. Apenas administradores podem abrir ou responder o Round.
+                    </p>
                 </div>
-            </Link>
+            )}
 
             <button 
                 onClick={() => setCreateAlertModalOpen(true)}
@@ -1885,11 +1921,26 @@ const AddEndDateModal: React.FC<{ medicationId: number | string, patientId: numb
 const RoundCategoryListScreen: React.FC = () => {
     const { patientId } = useParams<{ patientId: string }>();
     const { patients, questions, checklistAnswers, categories } = useContext(PatientsContext)!;
+    const { user } = useContext(UserContext)!;
     const patient = patients.find(p => p.id.toString() === patientId);
 
     useHeader('Round: Categorias');
-    
+
     if (!patientId || !patient) return <p>Paciente não encontrado.</p>;
+
+    const canStartRound = canUserStartRound(user);
+
+    if (!canStartRound) {
+        return (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-200">
+                <div className="flex items-center gap-2 font-semibold mb-2">
+                    <EyeOffIcon className="w-5 h-5" />
+                    Acesso restrito
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para visualizar as categorias do Round. Somente administradores podem continuar.</p>
+            </div>
+        );
+    }
 
     const completedCategories = useMemo(() => {
         if (!questions.length) return [];
@@ -2092,6 +2143,7 @@ const AlertModal: React.FC<{ question: Question, onClose: () => void, patientId:
 const ChecklistScreen: React.FC = () => {
     const { patientId, categoryId, questionIndex } = useParams<{ patientId: string; categoryId: string; questionIndex: string }>();
     const { patients, questions, checklistAnswers, saveChecklistAnswer, categories } = useContext(PatientsContext)!;
+    const { user } = useContext(UserContext)!;
     
     const patient = patients.find(p => p.id.toString() === patientId);
     const category = categories.find(c => c.id.toString() === categoryId);
@@ -2144,6 +2196,20 @@ const ChecklistScreen: React.FC = () => {
             navigate(`/patient/${patientId}/round/category/${categoryId}/question/${currentQuestionIndex - 1}`);
         }
     };
+
+    const canStartRound = canUserStartRound(user);
+
+    if (!canStartRound) {
+        return (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-200">
+                <div className="flex items-center gap-2 font-semibold mb-2">
+                    <EyeOffIcon className="w-5 h-5" />
+                    Acesso restrito
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para responder o Round. Somente administradores podem registrar respostas.</p>
+            </div>
+        );
+    }
 
     if (!patient || !category || categoryQuestions.length === 0) {
         return <p>Paciente, categoria ou perguntas não encontrados.</p>;
@@ -3151,9 +3217,10 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     useEffect(() => {
         const loadUser = async () => {
             // 1. Try local storage first for fast load / persistence across reloads
-            const savedUser = localStorage.getItem('round_juju_user');
+            const savedUserRaw = localStorage.getItem('round_juju_user');
+            const savedUser: User | null = savedUserRaw ? JSON.parse(savedUserRaw) : null;
             if (savedUser) {
-                setUser(JSON.parse(savedUser));
+                setUser(savedUser);
             }
 
             // 2. Check for Supabase Auth Session
@@ -3164,19 +3231,20 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                     .select('*')
                     .eq('id', session.user.id)
                     .single();
-                
-                if (data) {
-                    // Update state from DB
-                    const dbUser = {
-                        name: data.name || '',
-                        title: data.role || '', // Mapping DB 'role' to App 'title'
-                        sector: data.sector || '',
-                        avatarUrl: data.foto || '', // Mapping DB 'foto' to App 'avatarUrl'
-                    };
-                    setUser(dbUser);
-                    // Update local storage to keep in sync
-                    localStorage.setItem('round_juju_user', JSON.stringify(dbUser));
-                }
+
+                // Update state from DB and session
+                const dbUser: User = {
+                    id: session.user.id,
+                    email: session.user.email || savedUser?.email,
+                    name: data?.name || savedUser?.name || '',
+                    title: data?.role || savedUser?.title || '', // Mapping DB 'role' to App 'title'
+                    sector: data?.sector || savedUser?.sector || '',
+                    avatarUrl: data?.foto || savedUser?.avatarUrl || '', // Mapping DB 'foto' to App 'avatarUrl'
+                    accessLevel: (data?.access_level as 'adm' | 'geral' | null) || savedUser?.accessLevel,
+                };
+                setUser(dbUser);
+                // Update local storage to keep in sync
+                localStorage.setItem('round_juju_user', JSON.stringify(dbUser));
             }
         };
         loadUser();
@@ -3199,7 +3267,8 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                 sector: newUser.sector,
                 foto: newUser.avatarUrl, // Mapping avatarUrl to foto
                 email: session.user.email,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                ...(newUser.accessLevel ? { access_level: newUser.accessLevel } : {}),
             });
         }
     };
