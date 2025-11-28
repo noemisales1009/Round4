@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useContext, useEffect, createContext, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, Link, useParams, useLocation, Outlet, NavLink, Navigate } from 'react-router-dom';
-import { Patient, Category, Question, ChecklistAnswer, Answer, Device, Exam, Medication, Task, TaskStatus, PatientsContextType, TasksContextType, NotificationState, NotificationContextType, User, UserContextType, Theme, ThemeContextType, SurgicalProcedure, ScaleScore, Culture } from './types';
+import { Patient, Category, Question, ChecklistAnswer, Answer, Device, Exam, Medication, Task, TaskStatus, PatientsContextType, TasksContextType, NotificationState, NotificationContextType, User, UserContextType, Theme, ThemeContextType, SurgicalProcedure, ScaleScore, Culture, TaskSummary } from './types';
 import { PATIENTS as initialPatients, CATEGORIES as STATIC_CATEGORIES, QUESTIONS as STATIC_QUESTIONS, TASKS as initialTasks, DEVICE_TYPES, DEVICE_LOCATIONS, EXAM_STATUSES, RESPONSIBLES, ALERT_DEADLINES, INITIAL_USER, MEDICATION_DOSAGE_UNITS, ICON_MAP } from './constants';
 import { BackArrowIcon, PlusIcon, WarningIcon, ClockIcon, AlertIcon, CheckCircleIcon, BedIcon, UserIcon, PencilIcon, BellIcon, InfoIcon, EyeOffIcon, ClipboardIcon, FileTextIcon, LogOutIcon, ChevronRightIcon, MenuIcon, DashboardIcon, CpuIcon, PillIcon, BarChartIcon, AppleIcon, DropletIcon, HeartPulseIcon, BeakerIcon, LiverIcon, LungsIcon, DumbbellIcon, BrainIcon, ShieldIcon, UsersIcon, HomeIcon, CloseIcon, SettingsIcon, CameraIcon, ScalpelIcon, SaveIcon, CheckSquareIcon, SquareIcon, ChevronDownIcon, CheckIcon, ChevronLeftIcon, BugIcon } from './components/icons';
 import { ComfortBScale } from './components/ComfortBScale';
@@ -25,6 +25,21 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 
 // --- HELPER FOR DATES ---
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
+const parseDeadlineDate = (deadline?: string | null): Date | null => {
+    if (!deadline) return null;
+
+    const dateFromNative = new Date(deadline);
+    if (!Number.isNaN(dateFromNative.getTime())) return dateFromNative;
+
+    // Attempt to parse dd/MM/yyyy HH:mm strings (e.g., from prazo_limite_formatado)
+    const match = deadline.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/);
+    if (!match) return null;
+
+    const [, day, month, year, hour, minute] = match.map(Number);
+    const parsed = new Date(year, month - 1, day, hour, minute);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 // --- LAYOUT & NAVIGATION ---
 
@@ -317,11 +332,11 @@ const DashboardScreen: React.FC = () => {
     // 1. Cards Coloridos (Topo)
     const summaryData = useMemo(() => {
         if (summary) {
-             return [
-                { title: 'Alertas', count: summary.total_alertas_criados || 0, icon: WarningIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-100 dark:bg-yellow-900/50', status: 'alerta' },
-                { title: 'No Prazo', count: summary.total_no_prazo_pendentes || 0, icon: ClockIcon, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/50', status: 'no_prazo' },
-                { title: 'Fora do Prazo', count: summary.total_fora_do_prazo_pendentes || 0, icon: AlertIcon, color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/50', status: 'fora_do_prazo' },
-                { title: 'Concluídos', count: summary.total_alertas_concluidos || 0, icon: CheckCircleIcon, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/50', status: 'concluido' },
+            return [
+                { title: 'Alertas', count: summary.totalAlertas || 0, icon: WarningIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-100 dark:bg-yellow-900/50', status: 'alerta' },
+                { title: 'No Prazo', count: summary.totalNoPrazo || 0, icon: ClockIcon, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/50', status: 'no_prazo' },
+                { title: 'Fora do Prazo', count: summary.totalForaDoPrazo || 0, icon: AlertIcon, color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/50', status: 'fora_do_prazo' },
+                { title: 'Concluídos', count: summary.totalConcluidos || 0, icon: CheckCircleIcon, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/50', status: 'concluido' },
             ];
         }
         // Fallback to client-side calc if summary is not available
@@ -2349,11 +2364,14 @@ const TaskStatusScreen: React.FC = () => {
                 const patient = task.patientId ? patients.find((p: Patient) => p.id.toString() === task.patientId.toString()) : undefined;
                 const category = categories.find(c => c.id === task.categoryId);
                 
-                const deadlineDate = new Date(task.deadline);
-                const isToday = new Date().toDateString() === deadlineDate.toDateString();
-                const formattedDeadline = isToday 
-                    ? `Hoje às ${deadlineDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                    : `${deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${deadlineDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+                const parsedDeadline = parseDeadlineDate(task.deadline) ?? new Date(task.deadline);
+                const hasValidDeadline = !Number.isNaN(parsedDeadline.getTime());
+                const isToday = hasValidDeadline && new Date().toDateString() === parsedDeadline.toDateString();
+                const formattedDeadline = hasValidDeadline
+                    ? (isToday
+                        ? `Hoje às ${parsedDeadline.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                        : `${parsedDeadline.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${parsedDeadline.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)
+                    : 'Prazo não informado';
 
                 return (
                     <div key={task.id} className={`bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border-l-4 border-${config.color}-500`}>
@@ -2995,60 +3013,174 @@ const PatientsProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // Start with empty array, will fetch on mount
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [summary, setSummary] = useState<TaskSummary | undefined>(undefined);
+
+    // The views already compute status using Brazil timezone rules. We map the view columns
+    // (including snake_case names) into our Task shape so the UI simply displays what the
+    // database decided, instead of re-evaluating deadlines client-side.
+    const mapTaskStatus = (rawStatus: string | null | undefined, deadline?: string | null): TaskStatus => {
+        const normalized = (rawStatus || '').toLowerCase().replace(/\s+/g, '_');
+        switch (normalized) {
+            case 'alerta':
+            case 'aberto':
+                return 'alerta';
+            case 'no_prazo':
+                return 'no_prazo';
+            case 'fora_do_prazo':
+                return 'fora_do_prazo';
+            case 'concluido':
+            case 'concluida':
+                return 'concluido';
+            default: {
+                const deadlineDate = parseDeadlineDate(deadline);
+                if (deadlineDate && deadlineDate < new Date()) {
+                    return 'fora_do_prazo';
+                }
+                return 'alerta';
+            }
+        }
+    };
+
+    const parseJsonMaybe = (value: any) => {
+        if (!value) return undefined;
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch (err) {
+                console.error('Erro ao fazer parse do JSON do resumo:', err);
+                return undefined;
+            }
+        }
+        return value;
+    };
+
+    const computeSummaryFromTasks = (mappedTasks: Task[]): TaskSummary => {
+        const counts = mappedTasks.reduce(
+            (acc, task) => {
+                acc.totalAlertas += task.status === 'alerta' ? 1 : 0;
+                acc.totalNoPrazo += task.status === 'no_prazo' ? 1 : 0;
+                acc.totalForaDoPrazo += task.status === 'fora_do_prazo' ? 1 : 0;
+                acc.totalConcluidos += task.status === 'concluido' ? 1 : 0;
+                return acc;
+            },
+            { totalAlertas: 0, totalNoPrazo: 0, totalForaDoPrazo: 0, totalConcluidos: 0 }
+        );
+
+        return {
+            ...counts,
+            totalRegistros: mappedTasks.length,
+        };
+    };
 
     const fetchTasks = async () => {
         if (supabase) {
-            // Fetch from both 'tasks' and 'alertas_paciente' tables
-            const [tasksRes, alertsRes] = await Promise.all([
-                supabase.from('tasks').select('*'),
-                supabase.from('alertas_paciente').select('*') 
+            const mapSummaryPayload = (payload: any): TaskSummary | undefined => {
+                if (!payload) return undefined;
+
+                const totals = parseJsonMaybe(payload.resumo_totais ?? payload.resumoTotais ?? payload);
+
+                return {
+                    totalAlertas: Number(totals?.totalAlertas ?? totals?.total_alertas ?? 0),
+                    totalNoPrazo: Number(totals?.totalNoPrazo ?? totals?.total_no_prazo ?? 0),
+                    totalForaDoPrazo: Number(totals?.totalForaDoPrazo ?? totals?.total_fora_do_prazo ?? 0),
+                    totalConcluidos: Number(totals?.totalConcluidos ?? totals?.total_concluidos ?? 0),
+                    totalRegistros: totals?.totalRegistros ?? totals?.total_registros,
+                };
+            };
+
+            // Fetch data from Supabase views to align with server-side logic
+            const [tasksRes, alertsRes, summaryAdvancedRes] = await Promise.all([
+                supabase.from('tasks_view_horario_br').select('*'),
+                supabase.from('alertas_paciente_view_completa').select('*'),
+                supabase.from('dashboard_summary_avancado').select('*').maybeSingle(),
             ]);
 
             let mappedTasks: Task[] = [];
 
-            // Map standard checklist tasks
-            if (tasksRes.data) {
-                mappedTasks = tasksRes.data.map((t: any) => ({
-                    id: t.id,
-                    patientId: t.patient_id,
-                    categoryId: t.category_id,
-                    description: t.description,
-                    responsible: t.responsible,
-                    deadline: t.deadline,
-                    status: t.status,
-                    justification: t.justification,
-                    patientName: t.patient_name,
-                    categoryName: t.category,
-                    timeLabel: t.time_label,
-                    options: t.options
-                }));
+            // Map checklist and patient alert tasks from their respective views
+            if (tasksRes.error) {
+                console.error('Erro ao buscar tasks_view_horario_br:', tasksRes.error);
             }
 
-            // Map new 'alertas_paciente' tasks
-            if (alertsRes.data) {
-                const mappedAlerts: Task[] = alertsRes.data.map((a: any) => {
-                    // Calculate deadline from hora_selecionada string (e.g. "1 hora")
-                    const hours = parseInt(a.hora_selecionada?.split(' ')[0] || '0');
-                    const created = new Date(a.created_at);
-                    const deadline = new Date(created.getTime() + hours * 60 * 60 * 1000).toISOString();
+            if (tasksRes.data) {
+                mappedTasks = tasksRes.data.map((t: any) => {
+                    const rawStatus = t.live_status ?? t.liveStatus ?? t.status;
+                    const deadlineForStatus = t.prazo_limite_br ?? t.deadline ?? t.prazo_limite_formatado;
+                    const rawDeadline = t.prazo_limite_br ?? t.deadline ?? t.prazo_limite_formatado ?? t.created_at;
+                    const normalizedDeadline = parseDeadlineDate(rawDeadline) ?? (rawDeadline ? new Date(rawDeadline) : null);
 
                     return {
-                        id: a.id, // UUID from new table
-                        patientId: a.patient_id,
-                        categoryId: 0, // General category for these alerts
-                        description: a.alerta_descricao,
-                        responsible: a.responsavel,
-                        deadline: deadline,
-                        // Map 'Pendente' to 'alerta' for UI compatibility
-                        status: (a.status === 'Pendente' || a.status === 'Aberto') ? 'alerta' : (a.status === 'Concluido' ? 'concluido' : 'alerta'),
-                        categoryName: 'Geral',
-                        timeLabel: a.hora_selecionada,
-                    };
+                        id: t.id_alerta ?? t.id,
+                        patientId: t.patient_id ?? '',
+                        categoryId: t.category_id ?? 0,
+                        description: t.alertaclinico ?? t.description ?? '',
+                        responsible: t.responsavel ?? t.responsible ?? '',
+                        deadline: normalizedDeadline ? normalizedDeadline.toISOString() : (rawDeadline ?? ''),
+                        status: mapTaskStatus(rawStatus, deadlineForStatus ?? rawDeadline),
+                        justification: t.justificativa ?? t.justification,
+                        patientName: t.patient_name,
+                        categoryName: t.category_name ?? t.category,
+                        timeLabel: t.hora_criacao_hhmm ?? t.time_label ?? t.hora_selecionada,
+                        options: t.options ?? t.opcoes,
+                    } as Task;
+                });
+            }
+
+            if (alertsRes.error) {
+                console.error('Erro ao buscar alertas_paciente_view_completa:', alertsRes.error);
+            }
+
+            if (alertsRes.data) {
+                const mappedAlerts: Task[] = alertsRes.data.map((a: any) => {
+                    const rawStatus = a.live_status ?? a.liveStatus ?? a.status;
+                    const deadlineForStatus = a.prazo_limite_br ?? a.deadline ?? a.prazo_limite_formatado;
+                    const rawDeadline = a.prazo_limite_br ?? a.deadline ?? a.prazo_limite_formatado ?? a.created_at;
+                    const normalizedDeadline = parseDeadlineDate(rawDeadline) ?? (rawDeadline ? new Date(rawDeadline) : null);
+
+                    return {
+                        id: a.id_alerta ?? a.id,
+                        patientId: a.patient_id ?? '',
+                        categoryId: a.category_id ?? 0,
+                        description: a.alertaclinico ?? a.alerta_descricao ?? '',
+                        responsible: a.responsavel ?? a.responsible ?? '',
+                        deadline: normalizedDeadline ? normalizedDeadline.toISOString() : (rawDeadline ?? ''),
+                        status: mapTaskStatus(rawStatus, deadlineForStatus ?? rawDeadline),
+                        justification: a.justificativa ?? a.justification,
+                        patientName: a.patient_name ?? a.nome_paciente,
+                        categoryName: a.category_name ?? a.category ?? a.categoria,
+                        timeLabel: a.hora_selecionada ?? a.time_label,
+                        options: a.options ?? a.opcoes,
+                    } as Task;
                 });
                 mappedTasks = [...mappedTasks, ...mappedAlerts];
             }
 
-            setTasks(mappedTasks.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()));
+            if (summaryAdvancedRes.error) {
+                console.error('Erro ao buscar dashboard_summary_avancado:', summaryAdvancedRes.error);
+            }
+
+            let summaryPayload = Array.isArray(summaryAdvancedRes.data)
+                ? summaryAdvancedRes.data[0]
+                : summaryAdvancedRes.data;
+
+            // Fallback to legacy view if the advanced one is unavailable or empty
+            if (!summaryPayload) {
+                const legacySummaryRes = await supabase.from('dashboard_summary').select('*').maybeSingle();
+                if (legacySummaryRes.error) {
+                    console.error('Erro ao buscar dashboard_summary (fallback):', legacySummaryRes.error);
+                }
+                summaryPayload = Array.isArray(legacySummaryRes.data) ? legacySummaryRes.data[0] : legacySummaryRes.data;
+            }
+
+            const mappedSummary = mapSummaryPayload(summaryPayload) ?? computeSummaryFromTasks(mappedTasks);
+            setSummary(mappedSummary);
+
+            const toDeadlineMs = (value?: string | null) => {
+                const parsed = parseDeadlineDate(value || undefined);
+                return parsed ? parsed.getTime() : Number.MAX_SAFE_INTEGER;
+            };
+
+            setTasks(mappedTasks.sort((a, b) => toDeadlineMs(a.deadline) - toDeadlineMs(b.deadline)));
         }
     };
 
@@ -3118,6 +3250,7 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     const value = {
         tasks,
+        summary,
         updateTaskJustification,
         updateTaskStatus,
         addTask,
