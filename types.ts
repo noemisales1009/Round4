@@ -143,6 +143,12 @@ export interface TaskSummary {
     totalNoPrazo: number;
     totalForaDoPrazo: number;
     totalConcluidos: number;
+    totalRegistros?: number;
+    percConcluido?: number;
+    percAtrasado?: number;
+    percNoPrazo?: number;
+    porResponsavel?: any[];
+    porPaciente?: any[];
 }
 
 export interface PatientsContextType {

@@ -3043,11 +3043,33 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     const fetchTasks = async () => {
         if (supabase) {
+            const mapSummaryPayload = (payload: any): TaskSummary | undefined => {
+                if (!payload) return undefined;
+
+                const totals = payload.resumo_totais ?? payload.resumoTotais ?? payload;
+                const perc = payload.resumo_percentual ?? payload.resumoPercentual;
+                const porResponsavel = payload.por_responsavel ?? payload.porResponsavel;
+                const porPaciente = payload.por_paciente ?? payload.porPaciente;
+
+                return {
+                    totalAlertas: totals?.totalAlertas ?? totals?.total_alertas ?? 0,
+                    totalNoPrazo: totals?.totalNoPrazo ?? totals?.total_no_prazo ?? 0,
+                    totalForaDoPrazo: totals?.totalForaDoPrazo ?? totals?.total_fora_do_prazo ?? 0,
+                    totalConcluidos: totals?.totalConcluidos ?? totals?.total_concluidos ?? 0,
+                    totalRegistros: totals?.totalRegistros ?? totals?.total_registros,
+                    percConcluido: perc?.percConcluido ?? perc?.perc_concluido,
+                    percAtrasado: perc?.percAtrasado ?? perc?.perc_atrasado,
+                    percNoPrazo: perc?.percNoPrazo ?? perc?.perc_no_prazo,
+                    porResponsavel,
+                    porPaciente,
+                };
+            };
+
             // Fetch data from Supabase views to align with server-side logic
-            const [tasksRes, alertsRes, summaryRes] = await Promise.all([
+            const [tasksRes, alertsRes, summaryAdvancedRes] = await Promise.all([
                 supabase.from('tasks_view_horario_br').select('*'),
                 supabase.from('alertas_paciente_view_completa').select('*'),
-                supabase.from('dashboard_summary').select('*').maybeSingle(),
+                supabase.from('dashboard_summary_avancado').select('*').maybeSingle(),
             ]);
 
             let mappedTasks: Task[] = [];
@@ -3110,22 +3132,26 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 mappedTasks = [...mappedTasks, ...mappedAlerts];
             }
 
-            if (summaryRes.error) {
-                console.error('Erro ao buscar dashboard_summary:', summaryRes.error);
+            if (summaryAdvancedRes.error) {
+                console.error('Erro ao buscar dashboard_summary_avancado:', summaryAdvancedRes.error);
             }
 
-            if (summaryRes.data) {
-                const data = Array.isArray(summaryRes.data) ? summaryRes.data[0] : summaryRes.data;
-                if (data) {
-                    // The Supabase view already aggregates alert totals, so we simply normalize
-                    // camelCase/snake_case keys before storing in context.
-                    setSummary({
-                        totalAlertas: data.totalAlertas ?? data.total_alertas ?? 0,
-                        totalNoPrazo: data.totalNoPrazo ?? data.total_no_prazo ?? 0,
-                        totalForaDoPrazo: data.totalForaDoPrazo ?? data.total_fora_do_prazo ?? 0,
-                        totalConcluidos: data.totalConcluidos ?? data.total_concluidos ?? 0,
-                    });
+            let summaryPayload = Array.isArray(summaryAdvancedRes.data)
+                ? summaryAdvancedRes.data[0]
+                : summaryAdvancedRes.data;
+
+            // Fallback to legacy view if the advanced one is unavailable or empty
+            if (!summaryPayload) {
+                const legacySummaryRes = await supabase.from('dashboard_summary').select('*').maybeSingle();
+                if (legacySummaryRes.error) {
+                    console.error('Erro ao buscar dashboard_summary (fallback):', legacySummaryRes.error);
                 }
+                summaryPayload = Array.isArray(legacySummaryRes.data) ? legacySummaryRes.data[0] : legacySummaryRes.data;
+            }
+
+            const mappedSummary = mapSummaryPayload(summaryPayload);
+            if (mappedSummary) {
+                setSummary(mappedSummary);
             }
 
             const toDeadlineMs = (value?: string | null) => {
