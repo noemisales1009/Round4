@@ -2997,7 +2997,7 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     const [tasks, setTasks] = useState<Task[]>([]);
     const [summary, setSummary] = useState<TaskSummary | undefined>(undefined);
 
-    const mapTaskStatus = (rawStatus: string | null | undefined): TaskStatus => {
+    const mapTaskStatus = (rawStatus: string | null | undefined, deadline?: string | null): TaskStatus => {
         const normalized = (rawStatus || '').toLowerCase().replace(/\s+/g, '_');
         switch (normalized) {
             case 'alerta':
@@ -3010,8 +3010,15 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             case 'concluido':
             case 'concluida':
                 return 'concluido';
-            default:
+            default: {
+                if (deadline) {
+                    const deadlineDate = new Date(deadline);
+                    if (!Number.isNaN(deadlineDate.getTime()) && deadlineDate < new Date()) {
+                        return 'fora_do_prazo';
+                    }
+                }
                 return 'alerta';
+            }
         }
     };
 
@@ -3035,7 +3042,7 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     description: t.alertaclinico ?? t.description ?? '',
                     responsible: t.responsavel ?? t.responsible ?? '',
                     deadline: t.deadline ?? '',
-                    status: mapTaskStatus(t.live_status ?? t.status),
+                    status: mapTaskStatus(t.live_status ?? t.liveStatus ?? t.status, t.deadline),
                     justification: t.justificativa ?? t.justification,
                     patientName: t.patient_name,
                     categoryName: t.category_name ?? t.category,
@@ -3052,7 +3059,7 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     description: a.alertaclinico ?? a.alerta_descricao ?? '',
                     responsible: a.responsavel ?? a.responsible ?? '',
                     deadline: a.deadline ?? '',
-                    status: mapTaskStatus(a.live_status ?? a.status),
+                    status: mapTaskStatus(a.live_status ?? a.liveStatus ?? a.status, a.deadline),
                     justification: a.justificativa ?? a.justification,
                     patientName: a.patient_name ?? a.nome_paciente,
                     categoryName: a.category_name ?? a.category ?? a.categoria,
