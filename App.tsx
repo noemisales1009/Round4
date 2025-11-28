@@ -3041,21 +3041,52 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         }
     };
 
+    const parseJsonMaybe = (value: any) => {
+        if (!value) return undefined;
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch (err) {
+                console.error('Erro ao fazer parse do JSON do resumo:', err);
+                return undefined;
+            }
+        }
+        return value;
+    };
+
+    const computeSummaryFromTasks = (mappedTasks: Task[]): TaskSummary => {
+        const counts = mappedTasks.reduce(
+            (acc, task) => {
+                acc.totalAlertas += task.status === 'alerta' ? 1 : 0;
+                acc.totalNoPrazo += task.status === 'no_prazo' ? 1 : 0;
+                acc.totalForaDoPrazo += task.status === 'fora_do_prazo' ? 1 : 0;
+                acc.totalConcluidos += task.status === 'concluido' ? 1 : 0;
+                return acc;
+            },
+            { totalAlertas: 0, totalNoPrazo: 0, totalForaDoPrazo: 0, totalConcluidos: 0 }
+        );
+
+        return {
+            ...counts,
+            totalRegistros: mappedTasks.length,
+        };
+    };
+
     const fetchTasks = async () => {
         if (supabase) {
             const mapSummaryPayload = (payload: any): TaskSummary | undefined => {
                 if (!payload) return undefined;
 
-                const totals = payload.resumo_totais ?? payload.resumoTotais ?? payload;
-                const perc = payload.resumo_percentual ?? payload.resumoPercentual;
-                const porResponsavel = payload.por_responsavel ?? payload.porResponsavel;
-                const porPaciente = payload.por_paciente ?? payload.porPaciente;
+                const totals = parseJsonMaybe(payload.resumo_totais ?? payload.resumoTotais ?? payload);
+                const perc = parseJsonMaybe(payload.resumo_percentual ?? payload.resumoPercentual);
+                const porResponsavel = parseJsonMaybe(payload.por_responsavel ?? payload.porResponsavel);
+                const porPaciente = parseJsonMaybe(payload.por_paciente ?? payload.porPaciente);
 
                 return {
-                    totalAlertas: totals?.totalAlertas ?? totals?.total_alertas ?? 0,
-                    totalNoPrazo: totals?.totalNoPrazo ?? totals?.total_no_prazo ?? 0,
-                    totalForaDoPrazo: totals?.totalForaDoPrazo ?? totals?.total_fora_do_prazo ?? 0,
-                    totalConcluidos: totals?.totalConcluidos ?? totals?.total_concluidos ?? 0,
+                    totalAlertas: Number(totals?.totalAlertas ?? totals?.total_alertas ?? 0),
+                    totalNoPrazo: Number(totals?.totalNoPrazo ?? totals?.total_no_prazo ?? 0),
+                    totalForaDoPrazo: Number(totals?.totalForaDoPrazo ?? totals?.total_fora_do_prazo ?? 0),
+                    totalConcluidos: Number(totals?.totalConcluidos ?? totals?.total_concluidos ?? 0),
                     totalRegistros: totals?.totalRegistros ?? totals?.total_registros,
                     percConcluido: perc?.percConcluido ?? perc?.perc_concluido,
                     percAtrasado: perc?.percAtrasado ?? perc?.perc_atrasado,
@@ -3149,10 +3180,8 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 summaryPayload = Array.isArray(legacySummaryRes.data) ? legacySummaryRes.data[0] : legacySummaryRes.data;
             }
 
-            const mappedSummary = mapSummaryPayload(summaryPayload);
-            if (mappedSummary) {
-                setSummary(mappedSummary);
-            }
+            const mappedSummary = mapSummaryPayload(summaryPayload) ?? computeSummaryFromTasks(mappedTasks);
+            setSummary(mappedSummary);
 
             const toDeadlineMs = (value?: string | null) => {
                 const parsed = parseDeadlineDate(value || undefined);
