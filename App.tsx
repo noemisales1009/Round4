@@ -26,6 +26,21 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 // --- HELPER FOR DATES ---
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
+const parseDeadlineDate = (deadline?: string | null): Date | null => {
+    if (!deadline) return null;
+
+    const dateFromNative = new Date(deadline);
+    if (!Number.isNaN(dateFromNative.getTime())) return dateFromNative;
+
+    // Attempt to parse dd/MM/yyyy HH:mm strings (e.g., from prazo_limite_formatado)
+    const match = deadline.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/);
+    if (!match) return null;
+
+    const [, day, month, year, hour, minute] = match.map(Number);
+    const parsed = new Date(year, month - 1, day, hour, minute);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 // --- LAYOUT & NAVIGATION ---
 
 const Sidebar: React.FC = () => {
@@ -2349,11 +2364,14 @@ const TaskStatusScreen: React.FC = () => {
                 const patient = task.patientId ? patients.find((p: Patient) => p.id.toString() === task.patientId.toString()) : undefined;
                 const category = categories.find(c => c.id === task.categoryId);
                 
-                const deadlineDate = new Date(task.deadline);
-                const isToday = new Date().toDateString() === deadlineDate.toDateString();
-                const formattedDeadline = isToday 
-                    ? `Hoje às ${deadlineDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                    : `${deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${deadlineDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+                const parsedDeadline = parseDeadlineDate(task.deadline) ?? new Date(task.deadline);
+                const hasValidDeadline = !Number.isNaN(parsedDeadline.getTime());
+                const isToday = hasValidDeadline && new Date().toDateString() === parsedDeadline.toDateString();
+                const formattedDeadline = hasValidDeadline
+                    ? (isToday
+                        ? `Hoje às ${parsedDeadline.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                        : `${parsedDeadline.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${parsedDeadline.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)
+                    : 'Prazo não informado';
 
                 return (
                     <div key={task.id} className={`bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border-l-4 border-${config.color}-500`}>
@@ -2997,21 +3015,6 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     const [tasks, setTasks] = useState<Task[]>([]);
     const [summary, setSummary] = useState<TaskSummary | undefined>(undefined);
 
-    const parseDeadlineDate = (deadline?: string | null): Date | null => {
-        if (!deadline) return null;
-
-        const dateFromNative = new Date(deadline);
-        if (!Number.isNaN(dateFromNative.getTime())) return dateFromNative;
-
-        // Attempt to parse dd/MM/yyyy HH:mm strings (e.g., from prazo_limite_formatado)
-        const match = deadline.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/);
-        if (!match) return null;
-
-        const [, day, month, year, hour, minute] = match.map(Number);
-        const parsed = new Date(year, month - 1, day, hour, minute);
-        return Number.isNaN(parsed.getTime()) ? null : parsed;
-    };
-
     const mapTaskStatus = (rawStatus: string | null | undefined, deadline?: string | null): TaskStatus => {
         const normalized = (rawStatus || '').toLowerCase().replace(/\s+/g, '_');
         switch (normalized) {
@@ -3055,15 +3058,17 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 mappedTasks = tasksRes.data.map((t: any) => {
                     const rawStatus = t.live_status ?? t.liveStatus ?? t.status;
                     const deadlineForStatus = t.prazo_limite_br ?? t.deadline ?? t.prazo_limite_formatado;
-                    const deadlineValue = t.prazo_limite_br ?? t.deadline ?? '';
+                    const rawDeadline = t.prazo_limite_br ?? t.deadline ?? t.prazo_limite_formatado ?? t.created_at;
+                    const normalizedDeadline = parseDeadlineDate(rawDeadline) ?? (rawDeadline ? new Date(rawDeadline) : null);
+
                     return {
                         id: t.id_alerta ?? t.id,
                         patientId: t.patient_id ?? '',
                         categoryId: t.category_id ?? 0,
                         description: t.alertaclinico ?? t.description ?? '',
                         responsible: t.responsavel ?? t.responsible ?? '',
-                        deadline: deadlineValue,
-                        status: mapTaskStatus(rawStatus, deadlineForStatus),
+                        deadline: normalizedDeadline ? normalizedDeadline.toISOString() : (rawDeadline ?? ''),
+                        status: mapTaskStatus(rawStatus, deadlineForStatus ?? rawDeadline),
                         justification: t.justificativa ?? t.justification,
                         patientName: t.patient_name,
                         categoryName: t.category_name ?? t.category,
@@ -3081,15 +3086,17 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 const mappedAlerts: Task[] = alertsRes.data.map((a: any) => {
                     const rawStatus = a.live_status ?? a.liveStatus ?? a.status;
                     const deadlineForStatus = a.prazo_limite_br ?? a.deadline ?? a.prazo_limite_formatado;
-                    const deadlineValue = a.prazo_limite_br ?? a.deadline ?? '';
+                    const rawDeadline = a.prazo_limite_br ?? a.deadline ?? a.prazo_limite_formatado ?? a.created_at;
+                    const normalizedDeadline = parseDeadlineDate(rawDeadline) ?? (rawDeadline ? new Date(rawDeadline) : null);
+
                     return {
                         id: a.id_alerta ?? a.id,
                         patientId: a.patient_id ?? '',
                         categoryId: a.category_id ?? 0,
                         description: a.alertaclinico ?? a.alerta_descricao ?? '',
                         responsible: a.responsavel ?? a.responsible ?? '',
-                        deadline: deadlineValue,
-                        status: mapTaskStatus(rawStatus, deadlineForStatus),
+                        deadline: normalizedDeadline ? normalizedDeadline.toISOString() : (rawDeadline ?? ''),
+                        status: mapTaskStatus(rawStatus, deadlineForStatus ?? rawDeadline),
                         justification: a.justificativa ?? a.justification,
                         patientName: a.patient_name ?? a.nome_paciente,
                         categoryName: a.category_name ?? a.category ?? a.categoria,
