@@ -392,6 +392,92 @@ const DashboardScreen: React.FC = () => {
                 </div>
             </div>
 
+            {summary && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
+                        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Resumo Percentual</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/30">
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Concluído</p>
+                                <p className="text-2xl font-bold text-green-600">{summary.percConcluido ?? 0}%</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30">
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Fora do prazo</p>
+                                <p className="text-2xl font-bold text-red-500">{summary.percAtrasado ?? 0}%</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30">
+                                <p className="text-sm text-slate-500 dark:text-slate-400">No prazo</p>
+                                <p className="text-2xl font-bold text-blue-600">{summary.percNoPrazo ?? 0}%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
+                        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Resumo por Responsável</h3>
+                        {summary.porResponsavel?.length ? (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                                    <thead>
+                                        <tr className="text-left text-slate-500 dark:text-slate-400">
+                                            <th className="py-2 pr-4">Responsável</th>
+                                            <th className="py-2 pr-4">Concluídos</th>
+                                            <th className="py-2 pr-4">Atrasados</th>
+                                            <th className="py-2 pr-4">No prazo</th>
+                                            <th className="py-2">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {summary.porResponsavel.map((item: any, idx: number) => (
+                                            <tr key={`${item.responsavel ?? 'sem-resp'}-${idx}`} className="text-slate-700 dark:text-slate-200">
+                                                <td className="py-2 pr-4 font-semibold">{item.responsavel || '—'}</td>
+                                                <td className="py-2 pr-4">{item.concluidos ?? 0}</td>
+                                                <td className="py-2 pr-4">{item.atrasados ?? 0}</td>
+                                                <td className="py-2 pr-4">{item.no_prazo ?? item.noPrazo ?? 0}</td>
+                                                <td className="py-2">{item.total ?? 0}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Sem dados de responsáveis no momento.</p>
+                        )}
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:col-span-2">
+                        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Resumo por Paciente</h3>
+                        {summary.porPaciente?.length ? (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                                    <thead>
+                                        <tr className="text-left text-slate-500 dark:text-slate-400">
+                                            <th className="py-2 pr-4">Paciente</th>
+                                            <th className="py-2 pr-4">Concluídos</th>
+                                            <th className="py-2 pr-4">Atrasados</th>
+                                            <th className="py-2 pr-4">No prazo</th>
+                                            <th className="py-2">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {summary.porPaciente.map((item: any, idx: number) => (
+                                            <tr key={`${item.patient_id ?? 'sem-paciente'}-${idx}`} className="text-slate-700 dark:text-slate-200">
+                                                <td className="py-2 pr-4">{item.patient_id || '—'}</td>
+                                                <td className="py-2 pr-4">{item.concluidos ?? 0}</td>
+                                                <td className="py-2 pr-4">{item.atrasados ?? 0}</td>
+                                                <td className="py-2 pr-4">{item.no_prazo ?? item.noPrazo ?? 0}</td>
+                                                <td className="py-2">{item.total ?? 0}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Sem dados de pacientes no momento.</p>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Seção do Gráfico */}
             <div>
                 <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-4">Pendências por Categoria</h2>
