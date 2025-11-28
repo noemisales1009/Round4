@@ -118,6 +118,8 @@ export interface Task {
 
 // --- USER & THEME ---
 export interface User {
+    id?: string;
+    email?: string;
     name: string;
     title: string;
     sector?: string;

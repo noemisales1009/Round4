@@ -26,6 +26,11 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 // --- HELPER FOR DATES ---
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
+const ALLOWED_ROUND_USER_IDS = [
+    '9f80886a-d935-455f-a117-105e72e48e3c',
+    '0b1da7a4-7c79-419a-8504-bf312c07d346',
+];
+
 // --- LAYOUT & NAVIGATION ---
 
 const Sidebar: React.FC = () => {
@@ -941,6 +946,7 @@ const CreateAlertModal: React.FC<{ patientId: number | string; onClose: () => vo
 const PatientDetailScreen: React.FC = () => {
     const { patientId } = useParams<{ patientId: string }>();
     const { patients, addRemovalDateToDevice, deleteDeviceFromPatient, addEndDateToMedication, deleteMedicationFromPatient, deleteExamFromPatient, deleteSurgicalProcedureFromPatient, addScaleScoreToPatient, deleteCultureFromPatient } = useContext(PatientsContext)!;
+    const { user } = useContext(UserContext)!;
     const patient = patients.find(p => p.id.toString() === patientId);
     
     useHeader(patient ? `Leito ${patient.bedNumber}` : 'Paciente não encontrado');
@@ -963,6 +969,7 @@ const PatientDetailScreen: React.FC = () => {
     const [scaleView, setScaleView] = useState<'list' | 'comfort-b' | 'delirium' | 'glasgow' | 'crs-r' | 'flacc' | 'braden' | 'braden-qd' | 'vni-cnaf' | 'fss' | 'jfk'>('list');
 
     const { showNotification } = useContext(NotificationContext)!;
+    const canStartRound = ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
 
     useEffect(() => {
         if (mainTab !== 'scales') {
@@ -1347,12 +1354,29 @@ const PatientDetailScreen: React.FC = () => {
                 )}
             </div>
 
-            <Link to={`/patient/${patient.id}/round/categories`} className="w-full block text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-lg transition text-lg">
-                <div className="flex items-center justify-center gap-2">
-                    <ClipboardIcon className="w-6 h-6" />
-                    Iniciar/Ver Round
-                </div>
-            </Link>
+            {canStartRound ? (
+                <Link
+                    to={`/patient/${patient.id}/round/categories`}
+                    className="w-full block text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-lg transition text-lg"
+                >
+                    <div className="flex items-center justify-center gap-2">
+                        <ClipboardIcon className="w-6 h-6" />
+                        Iniciar/Ver Round
+                    </div>
+                </Link>
+            ) : (
+                <button
+                    type="button"
+                    className="w-full block text-center bg-blue-300 text-white font-bold py-4 px-4 rounded-lg transition text-lg cursor-not-allowed opacity-70"
+                    disabled
+                    aria-disabled="true"
+                >
+                    <div className="flex items-center justify-center gap-2">
+                        <ClipboardIcon className="w-6 h-6" />
+                        Iniciar/Ver Round
+                    </div>
+                </button>
+            )}
 
             <button 
                 onClick={() => setCreateAlertModalOpen(true)}
@@ -3151,9 +3175,10 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     useEffect(() => {
         const loadUser = async () => {
             // 1. Try local storage first for fast load / persistence across reloads
-            const savedUser = localStorage.getItem('round_juju_user');
+            const savedUserRaw = localStorage.getItem('round_juju_user');
+            const savedUser: User | null = savedUserRaw ? JSON.parse(savedUserRaw) : null;
             if (savedUser) {
-                setUser(JSON.parse(savedUser));
+                setUser(savedUser);
             }
 
             // 2. Check for Supabase Auth Session
@@ -3164,19 +3189,19 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                     .select('*')
                     .eq('id', session.user.id)
                     .single();
-                
-                if (data) {
-                    // Update state from DB
-                    const dbUser = {
-                        name: data.name || '',
-                        title: data.role || '', // Mapping DB 'role' to App 'title'
-                        sector: data.sector || '',
-                        avatarUrl: data.foto || '', // Mapping DB 'foto' to App 'avatarUrl'
-                    };
-                    setUser(dbUser);
-                    // Update local storage to keep in sync
-                    localStorage.setItem('round_juju_user', JSON.stringify(dbUser));
-                }
+
+                // Update state from DB and session
+                const dbUser: User = {
+                    id: session.user.id,
+                    email: session.user.email || savedUser?.email,
+                    name: data?.name || savedUser?.name || '',
+                    title: data?.role || savedUser?.title || '', // Mapping DB 'role' to App 'title'
+                    sector: data?.sector || savedUser?.sector || '',
+                    avatarUrl: data?.foto || savedUser?.avatarUrl || '', // Mapping DB 'foto' to App 'avatarUrl'
+                };
+                setUser(dbUser);
+                // Update local storage to keep in sync
+                localStorage.setItem('round_juju_user', JSON.stringify(dbUser));
             }
         };
         loadUser();
