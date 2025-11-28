@@ -1365,17 +1365,23 @@ const PatientDetailScreen: React.FC = () => {
                     </div>
                 </Link>
             ) : (
-                <button
-                    type="button"
-                    className="w-full block text-center bg-blue-300 text-white font-bold py-4 px-4 rounded-lg transition text-lg cursor-not-allowed opacity-70"
-                    disabled
-                    aria-disabled="true"
-                >
-                    <div className="flex items-center justify-center gap-2">
-                        <ClipboardIcon className="w-6 h-6" />
-                        Iniciar/Ver Round
-                    </div>
-                </button>
+                <div className="space-y-2">
+                    <button
+                        type="button"
+                        className="w-full block text-center bg-slate-300 text-slate-600 font-bold py-4 px-4 rounded-lg transition text-lg cursor-not-allowed opacity-80 border border-slate-200"
+                        disabled
+                        aria-disabled="true"
+                    >
+                        <div className="flex items-center justify-center gap-2">
+                            <ClipboardIcon className="w-6 h-6" />
+                            Iniciar/Ver Round
+                        </div>
+                    </button>
+                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2" role="alert">
+                        <EyeOffIcon className="w-5 h-5" />
+                        Você não tem acesso para iniciar o Round. Solicite liberação ao administrador.
+                    </p>
+                </div>
             )}
 
             <button 
@@ -1909,11 +1915,26 @@ const AddEndDateModal: React.FC<{ medicationId: number | string, patientId: numb
 const RoundCategoryListScreen: React.FC = () => {
     const { patientId } = useParams<{ patientId: string }>();
     const { patients, questions, checklistAnswers, categories } = useContext(PatientsContext)!;
+    const { user } = useContext(UserContext)!;
     const patient = patients.find(p => p.id.toString() === patientId);
 
     useHeader('Round: Categorias');
-    
+
     if (!patientId || !patient) return <p>Paciente não encontrado.</p>;
+
+    const canStartRound = ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+
+    if (!canStartRound) {
+        return (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-200">
+                <div className="flex items-center gap-2 font-semibold mb-2">
+                    <EyeOffIcon className="w-5 h-5" />
+                    Acesso restrito
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para visualizar as categorias do Round. Contate o administrador para solicitar acesso.</p>
+            </div>
+        );
+    }
 
     const completedCategories = useMemo(() => {
         if (!questions.length) return [];
@@ -2116,6 +2137,7 @@ const AlertModal: React.FC<{ question: Question, onClose: () => void, patientId:
 const ChecklistScreen: React.FC = () => {
     const { patientId, categoryId, questionIndex } = useParams<{ patientId: string; categoryId: string; questionIndex: string }>();
     const { patients, questions, checklistAnswers, saveChecklistAnswer, categories } = useContext(PatientsContext)!;
+    const { user } = useContext(UserContext)!;
     
     const patient = patients.find(p => p.id.toString() === patientId);
     const category = categories.find(c => c.id.toString() === categoryId);
@@ -2168,6 +2190,20 @@ const ChecklistScreen: React.FC = () => {
             navigate(`/patient/${patientId}/round/category/${categoryId}/question/${currentQuestionIndex - 1}`);
         }
     };
+
+    const canStartRound = ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+
+    if (!canStartRound) {
+        return (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-200">
+                <div className="flex items-center gap-2 font-semibold mb-2">
+                    <EyeOffIcon className="w-5 h-5" />
+                    Acesso restrito
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para responder o Round. Solicite acesso ao administrador.</p>
+            </div>
+        );
+    }
 
     if (!patient || !category || categoryQuestions.length === 0) {
         return <p>Paciente, categoria ou perguntas não encontrados.</p>;
