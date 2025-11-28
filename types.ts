@@ -139,10 +139,10 @@ export interface TasksContextType {
 }
 
 export interface TaskSummary {
-    totalAlertasCriados: number;
-    totalNoPrazoPendentes: number;
-    totalForaDoPrazoPendentes: number;
-    totalAlertasConcluidos: number;
+    totalAlertas: number;
+    totalNoPrazo: number;
+    totalForaDoPrazo: number;
+    totalConcluidos: number;
 }
 
 export interface PatientsContextType {

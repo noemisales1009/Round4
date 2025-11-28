@@ -317,11 +317,11 @@ const DashboardScreen: React.FC = () => {
     // 1. Cards Coloridos (Topo)
     const summaryData = useMemo(() => {
         if (summary) {
-             return [
-                { title: 'Alertas', count: summary.totalAlertasCriados || 0, icon: WarningIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-100 dark:bg-yellow-900/50', status: 'alerta' },
-                { title: 'No Prazo', count: summary.totalNoPrazoPendentes || 0, icon: ClockIcon, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/50', status: 'no_prazo' },
-                { title: 'Fora do Prazo', count: summary.totalForaDoPrazoPendentes || 0, icon: AlertIcon, color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/50', status: 'fora_do_prazo' },
-                { title: 'Concluídos', count: summary.totalAlertasConcluidos || 0, icon: CheckCircleIcon, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/50', status: 'concluido' },
+            return [
+                { title: 'Alertas', count: summary.totalAlertas || 0, icon: WarningIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-100 dark:bg-yellow-900/50', status: 'alerta' },
+                { title: 'No Prazo', count: summary.totalNoPrazo || 0, icon: ClockIcon, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/50', status: 'no_prazo' },
+                { title: 'Fora do Prazo', count: summary.totalForaDoPrazo || 0, icon: AlertIcon, color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/50', status: 'fora_do_prazo' },
+                { title: 'Concluídos', count: summary.totalConcluidos || 0, icon: CheckCircleIcon, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/50', status: 'concluido' },
             ];
         }
         // Fallback to client-side calc if summary is not available
@@ -3019,9 +3019,9 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         if (supabase) {
             // Fetch data from Supabase views to align with server-side logic
             const [tasksRes, alertsRes, summaryRes] = await Promise.all([
-                supabase.from('tarefas_visualizar_horario_br').select('*'),
-                supabase.from('alertas_do_paciente_visualizacao_completa').select('*'),
-                supabase.from('resumo_do_painel').select('*').maybeSingle(),
+                supabase.from('tasks_view_horario_br').select('*'),
+                supabase.from('alertas_paciente_view_completa').select('*'),
+                supabase.from('dashboard_summary').select('*').maybeSingle(),
             ]);
 
             let mappedTasks: Task[] = [];
@@ -3029,34 +3029,34 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             // Map checklist and patient alert tasks from their respective views
             if (tasksRes.data) {
                 mappedTasks = tasksRes.data.map((t: any) => ({
-                    id: t.alert_id ?? t.id,
-                    patientId: t.patient_id ?? t.paciente_id ?? '',
-                    categoryId: t.category_id ?? t.categoria_id ?? 0,
-                    description: t.alerta_clinico ?? t.description ?? '',
+                    id: t.id_alerta ?? t.id,
+                    patientId: t.patient_id ?? '',
+                    categoryId: t.category_id ?? 0,
+                    description: t.alertaclinico ?? t.description ?? '',
                     responsible: t.responsavel ?? t.responsible ?? '',
-                    deadline: t.deadline ?? t.prazo ?? t.data_limite ?? '',
-                    status: mapTaskStatus(t.status_ao_vivo ?? t.status),
+                    deadline: t.deadline ?? '',
+                    status: mapTaskStatus(t.live_status ?? t.status),
                     justification: t.justificativa ?? t.justification,
-                    patientName: t.patient_name ?? t.nome_paciente,
-                    categoryName: t.category ?? t.categoria ?? t.category_name,
-                    timeLabel: t.time_label ?? t.hora_selecionada ?? t.prazo_label,
+                    patientName: t.patient_name,
+                    categoryName: t.category_name ?? t.category,
+                    timeLabel: t.hora_criacao_hhmm ?? t.time_label ?? t.hora_selecionada,
                     options: t.options ?? t.opcoes,
                 }));
             }
 
             if (alertsRes.data) {
                 const mappedAlerts: Task[] = alertsRes.data.map((a: any) => ({
-                    id: a.alert_id ?? a.id,
-                    patientId: a.patient_id ?? a.paciente_id ?? '',
-                    categoryId: a.category_id ?? a.categoria_id ?? 0,
-                    description: a.alerta_clinico ?? a.alerta_descricao ?? '',
+                    id: a.id_alerta ?? a.id,
+                    patientId: a.patient_id ?? '',
+                    categoryId: a.category_id ?? 0,
+                    description: a.alertaclinico ?? a.alerta_descricao ?? '',
                     responsible: a.responsavel ?? a.responsible ?? '',
-                    deadline: a.deadline ?? a.prazo ?? a.data_limite ?? '',
-                    status: mapTaskStatus(a.status_ao_vivo ?? a.status),
+                    deadline: a.deadline ?? '',
+                    status: mapTaskStatus(a.live_status ?? a.status),
                     justification: a.justificativa ?? a.justification,
                     patientName: a.patient_name ?? a.nome_paciente,
-                    categoryName: a.category ?? a.categoria ?? a.category_name,
-                    timeLabel: a.time_label ?? a.hora_selecionada ?? a.prazo_label,
+                    categoryName: a.category_name ?? a.category ?? a.categoria,
+                    timeLabel: a.hora_selecionada ?? a.time_label,
                     options: a.options ?? a.opcoes,
                 }));
                 mappedTasks = [...mappedTasks, ...mappedAlerts];
@@ -3065,10 +3065,10 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             if (summaryRes.data) {
                 const data = summaryRes.data;
                 setSummary({
-                    totalAlertasCriados: data.totalAlertasCriados ?? data.total_alertas_criados ?? 0,
-                    totalNoPrazoPendentes: data.totalNoPrazoPendentes ?? data.total_no_prazo_pendentes ?? 0,
-                    totalForaDoPrazoPendentes: data.totalForaDoPrazoPendentes ?? data.total_fora_do_prazo_pendentes ?? 0,
-                    totalAlertasConcluidos: data.totalAlertasConcluidos ?? data.total_alertas_concluidos ?? 0,
+                    totalAlertas: data.totalAlertas ?? data.total_alertas ?? 0,
+                    totalNoPrazo: data.totalNoPrazo ?? data.total_no_prazo ?? 0,
+                    totalForaDoPrazo: data.totalForaDoPrazo ?? data.total_fora_do_prazo ?? 0,
+                    totalConcluidos: data.totalConcluidos ?? data.total_concluidos ?? 0,
                 });
             }
 
