@@ -3100,17 +3100,28 @@ const TasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 mappedTasks = [...mappedTasks, ...mappedAlerts];
             }
 
-            if (summaryRes.data) {
-                const data = summaryRes.data;
-                setSummary({
-                    totalAlertas: data.totalAlertas ?? data.total_alertas ?? 0,
-                    totalNoPrazo: data.totalNoPrazo ?? data.total_no_prazo ?? 0,
-                    totalForaDoPrazo: data.totalForaDoPrazo ?? data.total_fora_do_prazo ?? 0,
-                    totalConcluidos: data.totalConcluidos ?? data.total_concluidos ?? 0,
-                });
+            if (summaryRes.error) {
+                console.error('Erro ao buscar dashboard_summary:', summaryRes.error);
             }
 
-            setTasks(mappedTasks.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()));
+            if (summaryRes.data) {
+                const data = Array.isArray(summaryRes.data) ? summaryRes.data[0] : summaryRes.data;
+                if (data) {
+                    setSummary({
+                        totalAlertas: data.totalAlertas ?? data.total_alertas ?? 0,
+                        totalNoPrazo: data.totalNoPrazo ?? data.total_no_prazo ?? 0,
+                        totalForaDoPrazo: data.totalForaDoPrazo ?? data.total_fora_do_prazo ?? 0,
+                        totalConcluidos: data.totalConcluidos ?? data.total_concluidos ?? 0,
+                    });
+                }
+            }
+
+            const toDeadlineMs = (value?: string | null) => {
+                const parsed = parseDeadlineDate(value || undefined);
+                return parsed ? parsed.getTime() : Number.MAX_SAFE_INTEGER;
+            };
+
+            setTasks(mappedTasks.sort((a, b) => toDeadlineMs(a.deadline) - toDeadlineMs(b.deadline)));
         }
     };
 
