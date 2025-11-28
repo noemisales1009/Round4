@@ -124,6 +124,7 @@ export interface User {
     title: string;
     sector?: string;
     avatarUrl: string;
+    accessLevel?: 'adm' | 'geral';
 }
 
 export type Theme = 'light' | 'dark';

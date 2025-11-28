@@ -31,6 +31,12 @@ const ALLOWED_ROUND_USER_IDS = [
     '0b1da7a4-7c79-419a-8504-bf312c07d346',
 ];
 
+const canUserStartRound = (user: User) => {
+    const isAdmin = user.accessLevel === 'adm';
+    const legacyAllowlist = !user.accessLevel && ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+    return isAdmin || legacyAllowlist;
+};
+
 // --- LAYOUT & NAVIGATION ---
 
 const Sidebar: React.FC = () => {
@@ -969,7 +975,7 @@ const PatientDetailScreen: React.FC = () => {
     const [scaleView, setScaleView] = useState<'list' | 'comfort-b' | 'delirium' | 'glasgow' | 'crs-r' | 'flacc' | 'braden' | 'braden-qd' | 'vni-cnaf' | 'fss' | 'jfk'>('list');
 
     const { showNotification } = useContext(NotificationContext)!;
-    const canStartRound = ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+    const canStartRound = canUserStartRound(user);
 
     useEffect(() => {
         if (mainTab !== 'scales') {
@@ -1379,7 +1385,7 @@ const PatientDetailScreen: React.FC = () => {
                     </button>
                     <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2" role="alert">
                         <EyeOffIcon className="w-5 h-5" />
-                        Você não tem acesso para iniciar o Round. Solicite liberação ao administrador.
+                        Você não tem acesso para iniciar o Round. Apenas administradores podem abrir ou responder o Round.
                     </p>
                 </div>
             )}
@@ -1922,7 +1928,7 @@ const RoundCategoryListScreen: React.FC = () => {
 
     if (!patientId || !patient) return <p>Paciente não encontrado.</p>;
 
-    const canStartRound = ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+    const canStartRound = canUserStartRound(user);
 
     if (!canStartRound) {
         return (
@@ -1931,7 +1937,7 @@ const RoundCategoryListScreen: React.FC = () => {
                     <EyeOffIcon className="w-5 h-5" />
                     Acesso restrito
                 </div>
-                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para visualizar as categorias do Round. Contate o administrador para solicitar acesso.</p>
+                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para visualizar as categorias do Round. Somente administradores podem continuar.</p>
             </div>
         );
     }
@@ -2191,7 +2197,7 @@ const ChecklistScreen: React.FC = () => {
         }
     };
 
-    const canStartRound = ALLOWED_ROUND_USER_IDS.includes(user.id ?? '');
+    const canStartRound = canUserStartRound(user);
 
     if (!canStartRound) {
         return (
@@ -2200,7 +2206,7 @@ const ChecklistScreen: React.FC = () => {
                     <EyeOffIcon className="w-5 h-5" />
                     Acesso restrito
                 </div>
-                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para responder o Round. Solicite acesso ao administrador.</p>
+                <p className="text-sm text-red-700 dark:text-red-300">Você não tem permissão para responder o Round. Somente administradores podem registrar respostas.</p>
             </div>
         );
     }
@@ -3234,6 +3240,7 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                     title: data?.role || savedUser?.title || '', // Mapping DB 'role' to App 'title'
                     sector: data?.sector || savedUser?.sector || '',
                     avatarUrl: data?.foto || savedUser?.avatarUrl || '', // Mapping DB 'foto' to App 'avatarUrl'
+                    accessLevel: (data?.access_level as 'adm' | 'geral' | null) || savedUser?.accessLevel,
                 };
                 setUser(dbUser);
                 // Update local storage to keep in sync
@@ -3260,7 +3267,8 @@ const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                 sector: newUser.sector,
                 foto: newUser.avatarUrl, // Mapping avatarUrl to foto
                 email: session.user.email,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                ...(newUser.accessLevel ? { access_level: newUser.accessLevel } : {}),
             });
         }
     };
